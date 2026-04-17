@@ -1,0 +1,395 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  super_admin
+  operator
+  sales
+  service
+  customer
+}
+
+enum ProductStatus {
+  on_sale
+  pre_sale
+  discontinued
+  clearance
+}
+
+enum StorageCondition {
+  room_temperature
+  refrigerated
+  frozen
+}
+
+enum CustomerLevel {
+  retail
+  wholesale
+  vip
+  agent
+}
+
+enum AssetType {
+  detail_page
+  product_image
+  product_video
+  quotation_template
+  customer_script
+  company_intro
+}
+
+enum AssetStatus {
+  draft
+  published
+  archived
+}
+
+enum PlatformType {
+  common
+  taobao
+  douyin
+  xiaohongshu
+  wechat_channel
+  pinduoduo
+}
+
+enum InquiryStatus {
+  pending
+  quoted
+  replied
+  closed
+}
+
+enum QuoteStatus {
+  draft
+  sent
+  viewed
+  confirmed
+  expired
+  closed
+}
+
+enum AiBizType {
+  selling_points
+  detail_copy
+  customer_script
+  live_card
+  quotation_note
+  platform_rewrite
+}
+
+enum AiRecordStatus {
+  draft
+  approved
+  rejected
+  adopted
+}
+
+enum PromptStatus {
+  enabled
+  disabled
+}
+
+enum RuleStatus {
+  enabled
+  disabled
+}
+
+model User {
+  id               String             @id @default(cuid())
+  name             String
+  mobile           String?            @unique
+  email            String?            @unique
+  passwordHash     String?
+  role             UserRole
+  isActive         Boolean            @default(true)
+  customers        Customer[]         @relation("CustomerSalesOwner")
+  managedProducts  ProductSpu[]       @relation("ProductOwner")
+  createdQuotes    Quotation[]        @relation("QuotationCreatedBy")
+  aiRecords        AiGenerationRecord[] @relation("AiRecordCreatedBy")
+  reviewedAiRecords AiGenerationRecord[] @relation("AiRecordReviewedBy")
+  createdPrompts   AiPromptTemplate[] @relation("AiPromptCreatedBy")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Customer {
+  id                 String        @id @default(cuid())
+  companyName        String
+  contactName        String
+  mobile             String?
+  email              String?
+  level              CustomerLevel @default(wholesale)
+  salesOwnerId       String?
+  salesOwner         User?         @relation("CustomerSalesOwner", fields: [salesOwnerId], references: [id])
+  licenseNo          String?
+  wecomExternalUserId String?
+  notes              String?
+  inquiries          Inquiry[]
+  quotations         Quotation[]
+  favorites          CustomerFavorite[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model ProductCategory {
+  id         String       @id @default(cuid())
+  name       String
+  parentId   String?
+  parent     ProductCategory? @relation("ProductCategoryTree", fields: [parentId], references: [id])
+  children   ProductCategory[] @relation("ProductCategoryTree")
+  sort       Int          @default(0)
+  products   ProductSpu[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model ProductSpu {
+  id                       String             @id @default(cuid())
+  code                     String             @unique
+  name                     String
+  brand                    String?
+  originPlace              String?
+  status                   ProductStatus      @default(on_sale)
+  categoryId               String?
+  category                 ProductCategory?   @relation(fields: [categoryId], references: [id])
+  ownerId                  String?
+  owner                    User?              @relation("ProductOwner", fields: [ownerId], references: [id])
+  shelfLifeValue           Int?
+  shelfLifeUnit            String?
+  productionDateText       String?
+  batchNo                  String?
+  storageCondition         StorageCondition?
+  edibleMethod             String?
+  ingredientText           String?            @db.Text
+  nutritionText            String?            @db.Text
+  netContent               String?
+  packageSpec              String?
+  standardCode             String?
+  productionLicenseNo      String?
+  expiryWarningDays        Int?
+  tags                     String?            @db.Text
+  skus                     ProductSku[]
+  assets                   Asset[]
+  channelLinks             ProductChannelLink[]
+  inquiryItems             InquiryItem[]
+  quotationItems           QuotationItem[]
+  favorites                CustomerFavorite[]
+  aiRecords                AiGenerationRecord[]
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+}
+
+model ProductSku {
+  id              String        @id @default(cuid())
+  spuId           String
+  spu             ProductSpu    @relation(fields: [spuId], references: [id])
+  code            String        @unique
+  name            String
+  flavor          String?
+  specText        String?
+  packageText     String?
+  price           Decimal?      @db.Decimal(10, 2)
+  marketPrice     Decimal?      @db.Decimal(10, 2)
+  stock           Int?
+  moq             Int?
+  aiRecords       AiGenerationRecord[]
+  quotationItems  QuotationItem[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Asset {
+  id              String       @id @default(cuid())
+  spuId           String?
+  spu             ProductSpu?  @relation(fields: [spuId], references: [id])
+  type            AssetType
+  title           String
+  fileName        String?
+  fileUrl         String
+  fileExt         String?
+  fileSize        Int?
+  mimeType        String?
+  status          AssetStatus  @default(draft)
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model ProductChannelLink {
+  id              String       @id @default(cuid())
+  spuId           String
+  spu             ProductSpu   @relation(fields: [spuId], references: [id])
+  platform        PlatformType
+  title           String?
+  url             String
+  isActive        Boolean      @default(true)
+  checkedAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model ShippingTemplate {
+  id              String        @id @default(cuid())
+  name            String
+  warehouseName   String
+  billingMode     String
+  logisticsVendor String?
+  isDefault       Boolean       @default(false)
+  rules           ShippingRule[]
+  quotations      Quotation[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model ShippingRule {
+  id                String           @id @default(cuid())
+  templateId        String
+  template          ShippingTemplate @relation(fields: [templateId], references: [id])
+  destinationCode   String
+  destinationName   String
+  firstUnitPrice    Decimal?         @db.Decimal(10, 2)
+  additionalUnitPrice Decimal?       @db.Decimal(10, 2)
+  minOrderAmount    Decimal?         @db.Decimal(10, 2)
+  surchargeText     String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Inquiry {
+  id                    String          @id @default(cuid())
+  customerId            String
+  customer              Customer        @relation(fields: [customerId], references: [id])
+  status                InquiryStatus   @default(pending)
+  destinationText       String?
+  expectedBatchRequest  String?
+  storageRequirement    String?
+  transportRequirement  String?
+  remark                String?         @db.Text
+  items                 InquiryItem[]
+  quotationId           String?         @unique
+  quotation             Quotation?      @relation(fields: [quotationId], references: [id])
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model InquiryItem {
+  id            String      @id @default(cuid())
+  inquiryId     String
+  inquiry       Inquiry     @relation(fields: [inquiryId], references: [id])
+  productSpuId  String
+  productSpu    ProductSpu  @relation(fields: [productSpuId], references: [id])
+  quantity      Int?
+  note          String?
+  createdAt     DateTime    @default(now())
+}
+
+model Quotation {
+  id                  String           @id @default(cuid())
+  code                String           @unique
+  customerId          String
+  customer            Customer         @relation(fields: [customerId], references: [id])
+  createdById         String?
+  createdBy           User?            @relation("QuotationCreatedBy", fields: [createdById], references: [id])
+  shippingTemplateId  String?
+  shippingTemplate    ShippingTemplate? @relation(fields: [shippingTemplateId], references: [id])
+  status              QuoteStatus      @default(draft)
+  currency            String           @default("CNY")
+  validUntil          DateTime?
+  destinationText     String?
+  note                String?          @db.Text
+  totalProductAmount  Decimal?         @db.Decimal(10, 2)
+  totalShippingAmount Decimal?         @db.Decimal(10, 2)
+  totalAmount         Decimal?         @db.Decimal(10, 2)
+  items               QuotationItem[]
+  inquiry             Inquiry?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+}
+
+model QuotationItem {
+  id             String      @id @default(cuid())
+  quotationId    String
+  quotation      Quotation   @relation(fields: [quotationId], references: [id])
+  productSpuId   String
+  productSpu     ProductSpu  @relation(fields: [productSpuId], references: [id])
+  productSkuId   String?
+  productSku     ProductSku? @relation(fields: [productSkuId], references: [id])
+  quantity       Int         @default(1)
+  unitPrice      Decimal?    @db.Decimal(10, 2)
+  lineAmount     Decimal?    @db.Decimal(10, 2)
+  note           String?
+  createdAt      DateTime    @default(now())
+}
+
+model CustomerFavorite {
+  id            String      @id @default(cuid())
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  productSpuId  String
+  productSpu    ProductSpu  @relation(fields: [productSpuId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([customerId, productSpuId])
+}
+
+model AiPromptTemplate {
+  id                String        @id @default(cuid())
+  code              String        @unique
+  name              String
+  bizType           AiBizType
+  platform          PlatformType  @default(common)
+  promptText        String        @db.Text
+  outputSchemaJson  Json?
+  status            PromptStatus  @default(enabled)
+  version           Int           @default(1)
+  createdById       String?
+  createdBy         User?         @relation("AiPromptCreatedBy", fields: [createdById], references: [id])
+  records           AiGenerationRecord[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model AiGenerationRecord {
+  id                String           @id @default(cuid())
+  bizType           AiBizType
+  bizId             String?
+  productSpuId      String?
+  productSpu        ProductSpu?      @relation(fields: [productSpuId], references: [id])
+  productSkuId      String?
+  productSku        ProductSku?      @relation(fields: [productSkuId], references: [id])
+  platform          PlatformType     @default(common)
+  inputJson         Json?
+  promptTemplateId  String?
+  promptTemplate    AiPromptTemplate? @relation(fields: [promptTemplateId], references: [id])
+  promptSnapshot    String?          @db.Text
+  modelName         String?
+  outputText        String?          @db.Text
+  outputJson        Json?
+  status            AiRecordStatus   @default(draft)
+  reviewComment     String?          @db.Text
+  createdById       String?
+  createdBy         User?            @relation("AiRecordCreatedBy", fields: [createdById], references: [id])
+  reviewedById      String?
+  reviewedBy        User?            @relation("AiRecordReviewedBy", fields: [reviewedById], references: [id])
+  createdAt         DateTime         @default(now())
+  reviewedAt        DateTime?
+}
+
+model AiSensitiveRule {
+  id          String      @id @default(cuid())
+  ruleType    String
+  keyword     String
+  action      String
+  level       String?
+  remark      String?
+  status      RuleStatus  @default(enabled)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
