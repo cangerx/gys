@@ -1,0 +1,18 @@
+{
+  "name": "qiye-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @qiye/server --filter @qiye/portal --filter @qiye/admin dev",
+    "dev:server": "pnpm --filter @qiye/server dev",
+    "dev:portal": "pnpm --filter @qiye/portal dev",
+    "dev:admin": "pnpm --filter @qiye/admin dev",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck"
+  }
+}
